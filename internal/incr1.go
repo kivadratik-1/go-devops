@@ -141,7 +141,7 @@ func main() {
 	var pollInterval int = 2
 	var reportInterval int = 10
 	var url string = "http://127.0.0.1"
-	var port string = "8090"
+	var port string = "8080"
 	var serverAddr = url + ":" + port
 
 	ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
