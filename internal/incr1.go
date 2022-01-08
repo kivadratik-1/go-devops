@@ -2,18 +2,20 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"time"
 )
 
-type Monitor struct {
+type Metrics struct {
 	Alloc,
 	TotalAlloc,
 	LiveObjects,
@@ -54,11 +56,18 @@ func check(err error) {
 	}
 }
 
-func NewMonitor(duration int) {
-	var m Monitor
+func Float64bytes(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits)
+	return bytes
+}
+
+func (m *Metrics) UpdateMetrics(duration int) {
+	//var m Metrics
 	var rtm runtime.MemStats
 	var interval = time.Duration(duration) * time.Second
-	var PollCount int = 1
+	var PollCount int = 0
 	m.PollCount = PollCount
 	rand.Seed(time.Now().Unix())
 	m.RandomValue = rand.Intn(100) + 1
@@ -90,57 +99,68 @@ func NewMonitor(duration int) {
 		m.RandomValue = rand.Intn(10000) + 1
 
 		// Just encode to json and print
+
+		// b, _ := json.Marshal(m)
+		// fmt.Println(string(b))
+
+	}
+}
+
+func (m *Metrics) PostMetrics(serverAddr string, duration int) {
+
+	var interval = time.Duration(duration) * time.Second
+	for {
+		<-time.After(interval)
 		b, _ := json.Marshal(m)
-		fmt.Println(string(b))
+		//fmt.Println(string(b))
+		var inInterface map[string]float64
+		json.Unmarshal(b, &inInterface)
+
+		for field, val := range inInterface {
+			var uri string
+			if field != "PollCount" {
+				uri = "/update/gauge/" + field + "/" + strconv.FormatFloat(val, 'f', -1, 64)
+			} else {
+				uri = "/update/counter/" + field + "/" + strconv.FormatFloat(val, 'f', -1, 64)
+			}
+			//request, err := http.Post(serverAddr+uri, "text/plain", bytes.NewReader(Float64bytes(val)))
+			_, err := http.Post(serverAddr+uri, "text/plain", bytes.NewReader([]byte(strconv.FormatFloat(val, 'f', -1, 64))))
+			if err != nil {
+				log.Fatal(err)
+			}
+			//request.Header.Add("Content-Type", "text/plain")
+			//fmt.Println(string(request.ContentLength))
+			fmt.Println(serverAddr + uri)
+		}
 
 	}
-}
-
-func SimpleFunc(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Something"))
-}
-
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/hello" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
-
-	if r.Method != "GET" {
-		http.Error(w, "Method is not supported.", http.StatusNotFound)
-		return
-	}
-
-	fmt.Fprintf(w, "Hello!")
 }
 
 func main() {
-
+	var metric1 Metrics
 	var pollInterval int = 2
-	cmd := exec.Command("ifconfig")
+	var reportInterval int = 10
+	var url string = "http://127.0.0.1"
+	var port string = "8090"
+	var serverAddr = url + ":" + port
 
+	ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
+
+	cmd := exec.Command("ifconfig")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	check(err)
-	fmt.Println(cmd.Stdout)
-	content, err := ioutil.ReadFile("../../static/ptp-active-clients")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(content)
-
-	fileServer := http.FileServer(http.Dir("./static"))
-	handler2 := http.HandlerFunc(SimpleFunc)
-	fmt.Println(handler2)
-	http.Handle("/", fileServer)
-	http.HandleFunc("/hello", helloHandler)
-
-	fmt.Printf("Starting server at port 8080\n")
-	go NewMonitor(pollInterval)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)
+	go metric1.UpdateMetrics(pollInterval)
+	for ; true; <-ticker.C {
+		metric1.PostMetrics(serverAddr, reportInterval)
 	}
+	//go metric1.PostMetrics(serverAddr, reportInterval)
+	//for true {
+	//time.Sleep(time.Second)
+	//}
 
 }
