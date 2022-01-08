@@ -124,10 +124,11 @@ func (m *Metrics) PostMetrics(serverAddr string, duration int) {
 				uri = "/update/counter/" + field + "/" + strconv.FormatFloat(val, 'f', -1, 64)
 			}
 			//request, err := http.Post(serverAddr+uri, "text/plain", bytes.NewReader(Float64bytes(val)))
-			_, err := http.Post(serverAddr+uri, "text/plain", bytes.NewReader([]byte(strconv.FormatFloat(val, 'f', -1, 64))))
+			request, err := http.Post(serverAddr+uri, "text/plain", bytes.NewReader([]byte(strconv.FormatFloat(val, 'f', -1, 64))))
 			if err != nil {
 				log.Fatal(err)
 			}
+			defer request.Body.Close()
 			//request.Header.Add("Content-Type", "text/plain")
 			//fmt.Println(string(request.ContentLength))
 			fmt.Println(serverAddr + uri)
