@@ -67,7 +67,7 @@ func (m *Metrics) UpdateMetrics(duration int) {
 	//var m Metrics
 	var rtm runtime.MemStats
 	var interval = time.Duration(duration) * time.Second
-	var PollCount int = 0
+	var PollCount = 0
 	m.PollCount = PollCount
 	rand.Seed(time.Now().Unix())
 	m.RandomValue = rand.Intn(100) + 1
@@ -139,10 +139,10 @@ func (m *Metrics) PostMetrics(serverAddr string, duration int) {
 
 func main() {
 	var metric1 Metrics
-	var pollInterval int = 2
-	var reportInterval int = 10
-	var url string = "http://127.0.0.1"
-	var port string = "8080"
+	var pollInterval = 2
+	var reportInterval = 10
+	var url = "http://127.0.0.1"
+	var port = "8080"
 	var serverAddr = url + ":" + port
 
 	//ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
@@ -160,7 +160,7 @@ func main() {
 	// 	metric1.PostMetrics(serverAddr, reportInterval)
 	// }
 	go metric1.PostMetrics(serverAddr, reportInterval)
-	for true {
+	for {
 		time.Sleep(time.Second)
 	}
 
