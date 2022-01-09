@@ -145,7 +145,7 @@ func main() {
 	var port string = "8080"
 	var serverAddr = url + ":" + port
 
-	ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
+	//ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
 
 	cmd := exec.Command("ifconfig")
 	var out bytes.Buffer
@@ -156,12 +156,12 @@ func main() {
 		log.Fatal(err)
 	}
 	go metric1.UpdateMetrics(pollInterval)
-	for ; true; <-ticker.C {
-		metric1.PostMetrics(serverAddr, reportInterval)
+	// for ; true; <-ticker.C {
+	// 	metric1.PostMetrics(serverAddr, reportInterval)
+	// }
+	go metric1.PostMetrics(serverAddr, reportInterval)
+	for true {
+		time.Sleep(time.Second)
 	}
-	//go metric1.PostMetrics(serverAddr, reportInterval)
-	//for true {
-	//time.Sleep(time.Second)
-	//}
 
 }
