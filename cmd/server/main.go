@@ -30,18 +30,6 @@ func check(err error) {
 	}
 }
 
-func headers(w http.ResponseWriter, req *http.Request) {
-
-	//This handler does something a little more sophisticated by reading all the HTTP request headers and echoing them into the response body.
-
-	for name, headers := range req.Header {
-		for _, h := range headers {
-			fmt.Fprintf(w, "%v: %v\n", name, h)
-			//fmt.Println(w, "%v: %v\n", name, h)
-		}
-	}
-}
-
 func handler(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.RequestURI()
@@ -65,9 +53,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		case "counter":
 
 			v, err := strconv.ParseInt(subpath[4], 10, 64)
-			if err != nil {
-				log.Fatal(err)
-			}
+			check(err)
 			mI = mI + v
 			m1.val = strconv.FormatInt(mI, 10)
 			m1.isCounter = true
@@ -76,15 +62,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		default:
 			fmt.Println("Type", subpath[2], "wrong")
-			mess := "Type " + subpath[2] + " not supported, only [counter/gauge]"
+			outputMessage := "Type " + subpath[2] + " not supported, only [counter/gauge]"
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(mess))
+			w.Write([]byte(outputMessage))
 			r.Body.Close()
 		}
 		metricMap[subpath[3]] = m1
 		fmt.Println(metricMap)
 		options := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
-
 		file, err := os.OpenFile("metrics.data", options, os.FileMode(0600))
 		check(err)
 		_, err = fmt.Fprintln(file, metricMap)
@@ -93,9 +78,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		check(err)
 	} else {
 		fmt.Println("Method is wrong")
-		mess := "Only POST methoa alload"
+		outputMessage := "Only POST method is alload"
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(mess))
+		w.Write([]byte(outputMessage))
 
 	}
 }
@@ -104,8 +89,5 @@ func main() {
 	//metricGaugeMap := make(map[string]float64)
 	http.HandleFunc("/", handler)
 	err := http.ListenAndServe("localhost:8080", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	check(err)
 }
