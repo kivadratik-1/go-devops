@@ -128,7 +128,7 @@ func (m *Metrics) PostMetrics(serverAddr string, duration int) {
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer request.Body.Close()
+			request.Body.Close()
 			//request.Header.Add("Content-Type", "text/plain")
 			//fmt.Println(string(request.ContentLength))
 			fmt.Println(serverAddr + uri)
