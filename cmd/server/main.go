@@ -33,14 +33,14 @@ func check(err error) {
 func handler(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.RequestURI()
-	metod := r.Method
+	reqMethod := r.Method
 
 	log.Println(q)
 
 	subpath := strings.Split(q, "/")
 	//fmt.Println(subpath)
-	fmt.Println(metod)
-	if metod == "POST" {
+	fmt.Println(reqMethod)
+	if reqMethod == "POST" {
 		var m1 metricValue
 
 		switch subpath[2] {
@@ -86,7 +86,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	//metricGaugeMap := make(map[string]float64)
+
 	http.HandleFunc("/", handler)
 	err := http.ListenAndServe("localhost:8080", nil)
 	check(err)
