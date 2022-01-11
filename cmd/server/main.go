@@ -3,8 +3,10 @@ package main
 import (
 	//"fmt"
 	//"os"
+	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -17,15 +19,26 @@ import (
 )
 
 type metricValue struct {
-	val       string
+	val       [8]byte
 	isCounter bool
 }
 
 var (
 	metricMap = make(map[string]metricValue)
+	mI        int64
 )
 
-var mI int64
+func int64ToByte(value int64) [8]byte {
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(value))
+	return buf
+}
+
+func float64ToByte(f float64) [8]byte {
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], math.Float64bits(f))
+	return buf
+}
 
 func check(err error) {
 	if err != nil {
@@ -45,21 +58,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	//fmt.Println(reqMethod)
 	if reqMethod == "POST" {
 		var m1 metricValue
-
 		switch chi.URLParam(r, "metricType") {
 		case "gauge":
-			m1.val = chi.URLParam(r, "metricValue")
+			f, err := strconv.ParseFloat(chi.URLParam(r, "metricValue"), 64)
+			check(err)
+			m1.val = float64ToByte(f)
 			m1.isCounter = false
+			metricMap[chi.URLParam(r, "metricName")] = m1
 			w.WriteHeader(http.StatusOK)
 			r.Body.Close()
 
 		case "counter":
-
-			v, err := strconv.ParseInt(chi.URLParam(r, "metricValue"), 10, 64)
+			i, err := strconv.ParseInt(chi.URLParam(r, "metricValue"), 10, 64)
 			check(err)
-			mI = mI + v
-			m1.val = strconv.FormatInt(mI, 10)
+			mI = mI + i
+			m1.val = int64ToByte(mI)
 			m1.isCounter = true
+			metricMap[chi.URLParam(r, "metricName")] = m1
 			w.WriteHeader(http.StatusOK)
 			r.Body.Close()
 
@@ -70,7 +85,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(outputMessage))
 			r.Body.Close()
 		}
-		metricMap[chi.URLParam(r, "metricName")] = m1
+
 		fmt.Println(metricMap)
 		options := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
 		file, err := os.OpenFile("metrics.data", options, os.FileMode(0600))
