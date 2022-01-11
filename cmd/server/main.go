@@ -28,16 +28,28 @@ var (
 	mI        int64
 )
 
-func int64ToByte(value int64) [8]byte {
+func int64ToBytes(value int64) [8]byte {
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], uint64(value))
 	return buf
 }
 
-func float64ToByte(f float64) [8]byte {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], math.Float64bits(f))
-	return buf
+func int64FromBytes(bytes []byte) int64 {
+	i := binary.LittleEndian.Uint64(bytes)
+	return int64(i)
+}
+
+func float64ToBytes(value float64) [8]byte {
+	bits := math.Float64bits(value)
+	var bytes [8]byte
+	binary.LittleEndian.PutUint64(bytes[:], bits)
+	return bytes
+}
+
+func float64FromBytes(bytes []byte) float64 {
+	bits := binary.LittleEndian.Uint64(bytes)
+	float := math.Float64frombits(bits)
+	return float
 }
 
 func check(err error) {
@@ -62,7 +74,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		case "gauge":
 			f, err := strconv.ParseFloat(chi.URLParam(r, "metricValue"), 64)
 			check(err)
-			m1.val = float64ToByte(f)
+			m1.val = float64ToBytes(f)
+			fmt.Println(float64FromBytes(m1.val[:]))
 			m1.isCounter = false
 			metricMap[chi.URLParam(r, "metricName")] = m1
 			w.WriteHeader(http.StatusOK)
@@ -72,10 +85,70 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			i, err := strconv.ParseInt(chi.URLParam(r, "metricValue"), 10, 64)
 			check(err)
 			mI = mI + i
-			m1.val = int64ToByte(mI)
+			m1.val = int64ToBytes(mI)
 			m1.isCounter = true
+			fmt.Println(int64FromBytes(m1.val[:]))
 			metricMap[chi.URLParam(r, "metricName")] = m1
 			w.WriteHeader(http.StatusOK)
+			r.Body.Close()
+
+		default:
+			fmt.Println("Type", chi.URLParam(r, "metricType"), "wrong")
+			outputMessage := "Type " + chi.URLParam(r, "metricType") + " not supported, only [counter/gauge]"
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(outputMessage))
+			r.Body.Close()
+		}
+
+		//fmt.Println(metricMap)
+
+		options := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
+		file, err := os.OpenFile("metrics.data", options, os.FileMode(0600))
+		check(err)
+		_, err = fmt.Fprintln(file, metricMap)
+		check(err)
+		err = file.Close()
+		check(err)
+	} else {
+		fmt.Println("Method is wrong")
+		outputMessage := "Only POST method is alload"
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(outputMessage))
+
+	}
+}
+
+func handlerGetMetrics(w http.ResponseWriter, r *http.Request) {
+	metricName := chi.URLParam(r, "metricName")
+	q := r.URL.RequestURI()
+	log.Println(q)
+	reqMethod := r.Method
+	log.Println(reqMethod)
+
+	if reqMethod == "GET" {
+		switch chi.URLParam(r, "metricType") {
+		case "gauge":
+			v, ok := metricMap[metricName]
+
+			if !ok {
+				http.Error(w, "Not Found", http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "%v\n", float64FromBytes(v.val[:]))
+
+			r.Body.Close()
+
+		case "counter":
+			v, ok := metricMap[metricName]
+
+			if !ok {
+				http.Error(w, "Not Found", http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "%v\n", int64FromBytes(v.val[:]))
+
 			r.Body.Close()
 
 		default:
@@ -109,6 +182,9 @@ func main() {
 	r.Use(middleware.URLFormat)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Post("/update/{metricType}/{metricName}/{metricValue}", handler)
+	r.Get("/value/{metricType}/{metricName}", handlerGetMetrics)
+	r.Get("/", httpPrintAllMetrics)
+
 	// http.HandleFunc("/", handler)
 	// err := http.ListenAndServe("localhost:8080", nil)
 	fmt.Println("Serving on " + port)
