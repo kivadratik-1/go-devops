@@ -5,6 +5,7 @@ import (
 	//"os"
 	"encoding/binary"
 	"fmt"
+	"html/template"
 	"log"
 	"math"
 	"os"
@@ -23,9 +24,15 @@ type metricValue struct {
 	isCounter bool
 }
 
+type metric struct {
+	mtype string
+	value string
+}
+
 var (
 	metricMap = make(map[string]metricValue)
-	mI        int64
+	//metricStringMap = make(map[string]metric)
+	mI int64
 )
 
 func int64ToBytes(value int64) [8]byte {
@@ -174,6 +181,39 @@ func handlerGetMetrics(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(outputMessage))
 
 	}
+}
+
+func httpPrintAllMetrics(w http.ResponseWriter, _ *http.Request) {
+	var mS1 metric
+	metricStringMap := make(map[string]metric)
+	for k, v := range metricMap {
+		if !v.isCounter {
+			mS1.mtype = "gauge"
+			mS1.value = strconv.FormatFloat((float64FromBytes(v.val[:])), 'f', -1, 64)
+			metricStringMap[k] = mS1
+		} else {
+			mS1.mtype = "counter"
+			mS1.value = strconv.FormatInt((int64FromBytes(v.val[:])), 10)
+			metricStringMap[k] = mS1
+		}
+
+	}
+
+	Templ, _ := template.New("printMetricsHTML").Parse(`
+	<html>
+	  <head>
+	    <title>METRICS</title>
+	   <meta http-equiv="refresh" content="3" />
+	  </head>
+	  <h1><center>METRICS</center></h1>
+	  {{ range $key, $v := . }}
+	  {{ $key }} : {{ $v }} <br>
+	  {{ end }}
+	</html>
+	`)
+
+	w.WriteHeader(http.StatusOK)
+	Templ.Execute(w, metricStringMap)
 }
 
 func main() {
